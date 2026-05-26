@@ -1,0 +1,19 @@
+[Unit]
+Description=Nginx Certs Manager
+After=network.target nginx.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nginx-certs-manager
+ExecStart=/opt/nginx-certs-manager/nginx-certs-manager
+Restart=on-failure
+RestartSec=5
+Environment=PORT=8080
+Environment=DB_PATH=/opt/nginx-certs-manager/data/certs.db
+Environment=WEB_DIR=/opt/nginx-certs-manager/web-dist
+Environment=NGINX_DIR=/etc/nginx
+Environment=CERTBOT_DIR=/etc/letsencrypt
+
+[Install]
+WantedBy=multi-user.target
