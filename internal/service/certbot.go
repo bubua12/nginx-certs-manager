@@ -2,18 +2,34 @@ package service
 
 import (
 	"bytes"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
 type CertbotService struct {
-	BinPath string
+	BinPath   string
+	CertDir   string
 }
 
-func NewCertbotService() *CertbotService {
-	return &CertbotService{BinPath: "certbot"}
+func NewCertbotService(certDir string) *CertbotService {
+	binPath := "certbot"
+	// Try common certbot locations
+	for _, p := range []string{"/usr/bin/certbot", "/usr/local/bin/certbot", "/snap/bin/certbot"} {
+		if _, err := os.Stat(p); err == nil {
+			binPath = p
+			break
+		}
+	}
+	if certDir == "" {
+		certDir = "/etc/letsencrypt"
+	}
+	return &CertbotService{BinPath: binPath, CertDir: certDir}
 }
 
 type CertInfo struct {
@@ -27,6 +43,16 @@ type CertInfo struct {
 }
 
 func (s *CertbotService) ListCertificates() ([]CertInfo, error) {
+	// Method 1: Try `certbot certificates` command
+	if certs, err := s.listViaCommand(); err == nil && len(certs) > 0 {
+		return certs, nil
+	}
+
+	// Method 2: Fallback - read certificate files directly
+	return s.listViaFiles()
+}
+
+func (s *CertbotService) listViaCommand() ([]CertInfo, error) {
 	cmd := exec.Command(s.BinPath, "certificates")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -37,6 +63,68 @@ func (s *CertbotService) ListCertificates() ([]CertInfo, error) {
 	}
 
 	return s.parseCertificates(stdout.String()), nil
+}
+
+func (s *CertbotService) listViaFiles() ([]CertInfo, error) {
+	liveDir := filepath.Join(s.CertDir, "live")
+	entries, err := os.ReadDir(liveDir)
+	if err != nil {
+		return nil, fmt.Errorf("read live dir: %w", err)
+	}
+
+	var certs []CertInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		domain := entry.Name()
+		certPath := filepath.Join(liveDir, domain, "fullchain.pem")
+		keyPath := filepath.Join(liveDir, domain, "privkey.pem")
+
+		if _, err := os.Stat(certPath); err != nil {
+			continue
+		}
+
+		info, err := s.parseCertFile(certPath)
+		if err != nil {
+			continue
+		}
+
+		info.Domain = domain
+		info.CertPath = certPath
+		info.KeyPath = keyPath
+		certs = append(certs, *info)
+	}
+
+	return certs, nil
+}
+
+func (s *CertbotService) parseCertFile(certPath string) (*CertInfo, error) {
+	data, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("no PEM block found")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &CertInfo{
+		Domain:    cert.Subject.CommonName,
+		SANs:      cert.DNSNames,
+		Issuer:    cert.Issuer.CommonName,
+		NotBefore: cert.NotBefore,
+		NotAfter:  cert.NotAfter,
+	}
+
+	return info, nil
 }
 
 func (s *CertbotService) parseCertificates(output string) []CertInfo {
@@ -74,21 +162,14 @@ func (s *CertbotService) parseCertificates(output string) []CertInfo {
 				current.NotAfter = t
 			}
 		}
-		if strings.HasPrefix(line, "Serial Number:") {
-			// skip
-		}
 		if strings.HasPrefix(line, "Certificate Path:") {
 			current.CertPath = strings.TrimSpace(strings.TrimPrefix(line, "Certificate Path:"))
 		}
 		if strings.HasPrefix(line, "Private Key Path:") {
 			current.KeyPath = strings.TrimSpace(strings.TrimPrefix(line, "Private Key Path:"))
 		}
-		if strings.Contains(line, "Issuer:") {
-			issuer := strings.TrimSpace(strings.TrimPrefix(line, "Issuer:"))
-			current.Issuer = issuer
-		}
-		if strings.HasPrefix(line, "VALID:") {
-			// parse validity
+		if strings.HasPrefix(line, "Issuer:") {
+			current.Issuer = strings.TrimSpace(strings.TrimPrefix(line, "Issuer:"))
 		}
 	}
 
@@ -155,5 +236,11 @@ func (s *CertbotService) Revoke(certPath string) (string, error) {
 
 func (s *CertbotService) IsAvailable() bool {
 	_, err := exec.LookPath(s.BinPath)
+	if err == nil {
+		return true
+	}
+	// Also check if cert files exist
+	liveDir := filepath.Join(s.CertDir, "live")
+	_, err = os.Stat(liveDir)
 	return err == nil
 }

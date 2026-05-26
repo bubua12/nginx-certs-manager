@@ -30,7 +30,7 @@ func main() {
 		log.Fatalf("database init failed: %v", err)
 	}
 
-	certbot := service.NewCertbotService()
+	certbot := service.NewCertbotService(cfg.CertbotDir)
 	nginx := service.NewNginxService(cfg.NginxDir)
 	scanner := service.NewScanner(certbot, nginx)
 	ipLockout := service.NewIPLockout()
