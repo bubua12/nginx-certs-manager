@@ -18,6 +18,14 @@ import (
 func main() {
 	cfg := config.Load()
 
+	// JWT secret
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "nginx-certs-manager-default-secret-change-me"
+	}
+	handler.JWTSecret = []byte(jwtSecret)
+	middleware.JWTSecret = []byte(jwtSecret)
+
 	if err := database.Init(cfg.DBPath); err != nil {
 		log.Fatalf("database init failed: %v", err)
 	}
@@ -25,6 +33,7 @@ func main() {
 	certbot := service.NewCertbotService()
 	nginx := service.NewNginxService(cfg.NginxDir)
 	scanner := service.NewScanner(certbot, nginx)
+	ipLockout := service.NewIPLockout()
 
 	scanner.StartPeriodicScan(30 * time.Minute)
 
@@ -32,15 +41,31 @@ func main() {
 	e.HideBanner = true
 
 	e.Use(echomw.Recover())
-	e.Use(echomw.CORS())
+	e.Use(echomw.CORSWithConfig(echomw.CORSConfig{
+		AllowOrigins:     []string{"*"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+	}))
 	e.Use(middleware.Logger())
 
+	authHandler := handler.NewAuthHandler(ipLockout)
 	certHandler := handler.NewCertHandler(certbot)
 	siteHandler := handler.NewSiteHandler(nginx)
 	nginxHandler := handler.NewNginxHandler(nginx)
 
-	api := e.Group("/api")
+	// Public routes (no auth required)
+	public := e.Group("/api")
 	{
+		public.POST("/auth/login", authHandler.Login)
+		public.POST("/auth/register", authHandler.Register)
+	}
+
+	// Protected routes (JWT required)
+	api := e.Group("/api", middleware.JWTAuth())
+	{
+		api.GET("/auth/me", authHandler.GetCurrentUser)
+		api.POST("/auth/change-password", authHandler.ChangePassword)
+
 		api.GET("/dashboard/stats", handler.GetDashboardStats)
 		api.GET("/dashboard/timeline", handler.GetDashboardTimeline)
 
@@ -76,7 +101,7 @@ func setupStaticFiles(e *echo.Echo, webDir string) {
 	if _, err := os.Stat(webDir); os.IsNotExist(err) {
 		log.Printf("Web directory %s not found, frontend disabled", webDir)
 		e.GET("/*", func(c echo.Context) error {
-			return c.String(200, "Nginx Certs Manager API is running. Frontend not built yet. Run: cd web && npm run build")
+			return c.String(200, "Nginx Certs Manager API is running. Frontend not built yet.")
 		})
 		return
 	}

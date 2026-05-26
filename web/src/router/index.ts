@@ -5,6 +5,12 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/dashboard' },
     {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/Login.vue'),
+      meta: { title: '登录', public: true },
+    },
+    {
       path: '/dashboard',
       name: 'Dashboard',
       component: () => import('@/views/Dashboard.vue'),
@@ -41,6 +47,18 @@ const router = createRouter({
       meta: { title: '系统设置', icon: 'Setting' },
     },
   ],
+})
+
+// Route guard - redirect to login if not authenticated
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem('token')
+  if (to.meta.public) {
+    next()
+  } else if (!token) {
+    next('/login')
+  } else {
+    next()
+  }
 })
 
 export default router

@@ -33,6 +33,21 @@
     <el-container>
       <el-header class="app-header">
         <h2>{{ currentTitle }}</h2>
+        <div class="header-right">
+          <el-dropdown @command="handleCommand">
+            <span class="user-info">
+              <el-icon><User /></el-icon>
+              {{ authStore.username || '用户' }}
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="password">修改密码</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </el-header>
       <el-main class="app-main">
         <router-view />
@@ -44,9 +59,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const isCollapsed = ref(false)
 
 const menuItems = [
@@ -60,6 +78,14 @@ const currentTitle = computed(() => {
   const item = menuItems.find((m) => m.path === route.path)
   return item?.title || 'Nginx Certs Manager'
 })
+
+const handleCommand = async (cmd: string) => {
+  if (cmd === 'logout') {
+    await ElMessageBox.confirm('确定退出登录？', '提示', { type: 'warning' })
+    authStore.logout()
+    router.push('/login')
+  }
+}
 </script>
 
 <style>
@@ -108,10 +134,22 @@ html, body, #app { height: 100%; }
   height: 60px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid #e8e8e8;
   background: #fff;
+  padding: 0 20px;
 }
 .app-header h2 { font-size: 18px; font-weight: 500; }
+.header-right { display: flex; align-items: center; }
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #606266;
+  font-size: 14px;
+}
+.user-info:hover { color: #409eff; }
 .app-main {
   background: #f0f2f5;
   overflow-y: auto;

@@ -29,6 +29,7 @@ func Init(dbPath string) error {
 	}
 
 	if err := DB.AutoMigrate(
+		&model.User{},
 		&model.Certificate{},
 		&model.Site{},
 		&model.OperationLog{},
