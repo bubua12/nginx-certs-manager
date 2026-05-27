@@ -52,13 +52,33 @@
       </el-main>
     </el-container>
   </el-container>
+
+  <!-- 修改密码弹窗 -->
+  <el-dialog v-model="showPasswordDialog" title="修改密码" width="400" :close-on-click-modal="false">
+    <el-form ref="pwdFormRef" :model="pwdForm" :rules="pwdRules" label-width="80px">
+      <el-form-item label="原密码" prop="old_password">
+        <el-input v-model="pwdForm.old_password" type="password" show-password />
+      </el-form-item>
+      <el-form-item label="新密码" prop="new_password">
+        <el-input v-model="pwdForm.new_password" type="password" show-password placeholder="至少6位" />
+      </el-form-item>
+      <el-form-item label="确认密码" prop="confirm_password">
+        <el-input v-model="pwdForm.confirm_password" type="password" show-password />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="showPasswordDialog = false">取消</el-button>
+      <el-button type="primary" @click="handleChangePassword" :loading="pwdLoading">确认修改</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/api/index'
 
 const route = useRoute()
 const router = useRouter()
@@ -79,11 +99,58 @@ const currentTitle = computed(() => {
   return item?.title || 'Nginx Certs Manager'
 })
 
+// 修改密码
+const showPasswordDialog = ref(false)
+const pwdLoading = ref(false)
+const pwdFormRef = ref()
+const pwdForm = reactive({ old_password: '', new_password: '', confirm_password: '' })
+const pwdRules = {
+  old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码至少6位', trigger: 'blur' },
+  ],
+  confirm_password: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (_r: any, value: string, callback: Function) => {
+        if (value !== pwdForm.new_password) callback(new Error('两次密码不一致'))
+        else callback()
+      },
+      trigger: 'blur',
+    },
+  ],
+}
+
+const handleChangePassword = async () => {
+  await pwdFormRef.value?.validate()
+  pwdLoading.value = true
+  try {
+    await api.post('/auth/change-password', {
+      old_password: pwdForm.old_password,
+      new_password: pwdForm.new_password,
+    })
+    ElMessage.success('密码修改成功，请重新登录')
+    showPasswordDialog.value = false
+    pwdForm.old_password = ''
+    pwdForm.new_password = ''
+    pwdForm.confirm_password = ''
+    authStore.logout()
+    router.push('/login')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.error || '修改失败')
+  } finally {
+    pwdLoading.value = false
+  }
+}
+
 const handleCommand = async (cmd: string) => {
   if (cmd === 'logout') {
     await ElMessageBox.confirm('确定退出登录？', '提示', { type: 'warning' })
     authStore.logout()
     router.push('/login')
+  } else if (cmd === 'password') {
+    showPasswordDialog.value = true
   }
 }
 </script>

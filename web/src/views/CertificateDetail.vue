@@ -81,7 +81,11 @@ const cert = ref<any>(null)
 const loading = ref(false)
 const renewing = ref(false)
 
-const formatDate = (d: string) => d ? dayjs(d).format('YYYY-MM-DD HH:mm') : '-'
+const formatDate = (d: string) => {
+  if (!d) return '-'
+  const date = new Date(d)
+  return date.getFullYear() > 2000 ? dayjs(d).format('YYYY-MM-DD HH:mm') : '-'
+}
 const statusType = (s: string) => ({ active: 'success', expiring: 'warning', expired: 'danger' }[s] || 'info') as any
 const statusLabel = (s: string) => ({ active: '正常', expiring: '即将过期', expired: '已过期' }[s] || s || '-')
 
@@ -108,7 +112,12 @@ const loadCert = async () => {
   loading.value = true
   try {
     const res = await getCertificate(Number(route.params.id))
-    cert.value = { ...res.data, days_left: Math.floor((new Date(res.data.not_after).getTime() - Date.now()) / 86400000) }
+    const d = res.data
+    const expiry = new Date(d.not_after)
+    const daysLeft = expiry.getFullYear() > 2000
+      ? Math.floor((expiry.getTime() - Date.now()) / 86400000)
+      : -99999
+    cert.value = { ...d, days_left: daysLeft }
   } catch {
     ElMessage.error('加载证书信息失败')
   } finally {

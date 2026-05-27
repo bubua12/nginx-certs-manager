@@ -30,6 +30,12 @@ func (s *Scanner) ScanCertificates() {
 	}
 
 	for _, cert := range certs {
+		// Skip certs with invalid dates
+		if cert.NotAfter.IsZero() || cert.NotAfter.Year() < 2000 {
+			log.Printf("skipping %s: invalid expiry date", cert.Domain)
+			continue
+		}
+
 		var existing model.Certificate
 		result := database.DB.Where("domain = ?", cert.Domain).First(&existing)
 
