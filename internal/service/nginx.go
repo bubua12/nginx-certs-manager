@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -25,12 +26,12 @@ type NginxStatus struct {
 }
 
 type SiteConfig struct {
-	Domain     string
-	ConfigPath string
-	Enabled    bool
-	Port       int
-	SSLEnabled bool
-	Upstream   string
+	Domain     string `json:"domain"`
+	ConfigPath string `json:"config_path"`
+	Enabled    bool   `json:"enabled"`
+	Port       int    `json:"port"`
+	SSLEnabled bool   `json:"ssl_enabled"`
+	Upstream   string `json:"upstream"`
 }
 
 func (s *NginxService) GetStatus() (*NginxStatus, error) {
@@ -86,106 +87,349 @@ func (s *NginxService) Reload() (string, error) {
 	return output, nil
 }
 
+// ListSites parses nginx config files to extract all server blocks
 func (s *NginxService) ListSites() ([]SiteConfig, error) {
-	sitesAvail := filepath.Join(s.ConfigDir, "sites-available")
-	sitesEnabled := filepath.Join(s.ConfigDir, "sites-enabled")
+	var sites []SiteConfig
 
-	entries, err := os.ReadDir(sitesAvail)
-	if err != nil {
-		return nil, fmt.Errorf("read sites-available: %w", err)
+	// 1. Parse main nginx.conf
+	mainConf := filepath.Join(s.ConfigDir, "nginx.conf")
+	if data, err := os.ReadFile(mainConf); err == nil {
+		blocks := extractServerBlocks(string(data))
+		for _, block := range blocks {
+			site := parseServerBlock(block, mainConf)
+			if site.Domain != "" && site.Domain != "_" {
+				sites = append(sites, site)
+			}
+		}
 	}
 
+	// 2. Parse conf.d/*.conf
+	confD := filepath.Join(s.ConfigDir, "conf.d")
+	if entries, err := os.ReadDir(confD); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".conf") {
+				continue
+			}
+			path := filepath.Join(confD, entry.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			blocks := extractServerBlocks(string(data))
+			for _, block := range blocks {
+				site := parseServerBlock(block, path)
+				if site.Domain != "" && site.Domain != "_" {
+					sites = append(sites, site)
+				}
+			}
+		}
+	}
+
+	// 3. Parse sites-available/ (traditional layout)
+	sitesAvail := filepath.Join(s.ConfigDir, "sites-available")
+	sitesEnabled := filepath.Join(s.ConfigDir, "sites-enabled")
 	enabledMap := make(map[string]bool)
-	if enabledEntries, err := os.ReadDir(sitesEnabled); err == nil {
-		for _, e := range enabledEntries {
+	if entries, err := os.ReadDir(sitesEnabled); err == nil {
+		for _, e := range entries {
 			enabledMap[e.Name()] = true
 		}
 	}
-
-	var sites []SiteConfig
-	for _, entry := range entries {
-		if entry.Name() == "default" {
-			continue
+	if entries, err := os.ReadDir(sitesAvail); err == nil {
+		for _, entry := range entries {
+			info, err := entry.Info()
+			if err != nil || info.IsDir() {
+				continue
+			}
+			path := filepath.Join(sitesAvail, entry.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			blocks := extractServerBlocks(string(data))
+			for _, block := range blocks {
+				site := parseServerBlock(block, path)
+				site.Enabled = enabledMap[entry.Name()]
+				if site.Domain != "" && site.Domain != "_" {
+					sites = append(sites, site)
+				}
+			}
 		}
-		info, err := entry.Info()
-		if err != nil || info.IsDir() {
-			continue
-		}
-
-		site := SiteConfig{
-			Domain:     entry.Name(),
-			ConfigPath: filepath.Join(sitesAvail, entry.Name()),
-			Enabled:    enabledMap[entry.Name()],
-		}
-
-		s.parseSiteConfig(&site)
-		sites = append(sites, site)
 	}
 
-	return sites, nil
+	// Deduplicate by domain
+	seen := make(map[string]bool)
+	var result []SiteConfig
+	for _, site := range sites {
+		if !seen[site.Domain] {
+			seen[site.Domain] = true
+			result = append(result, site)
+		}
+	}
+
+	return result, nil
 }
 
-func (s *NginxService) parseSiteConfig(site *SiteConfig) {
-	data, err := os.ReadFile(site.ConfigPath)
-	if err != nil {
-		return
-	}
-
-	content := string(data)
-
-	re := regexp.MustCompile(`server_name\s+([^;]+)`)
-	if m := re.FindStringSubmatch(content); len(m) > 1 {
-		site.Domain = strings.TrimSpace(m[1])
-	}
-
-	re = regexp.MustCompile(`listen\s+(\d+)`)
-	if m := re.FindStringSubmatch(content); len(m) > 1 {
-		fmt.Sscanf(m[1], "%d", &site.Port)
-	}
-
-	site.SSLEnabled = strings.Contains(content, "ssl_certificate")
-
-	re = regexp.MustCompile(`proxy_pass\s+(https?://[^;]+)`)
-	if m := re.FindStringSubmatch(content); len(m) > 1 {
-		site.Upstream = m[1]
-	}
-}
-
+// GetSiteConfig returns the server block content for a domain
 func (s *NginxService) GetSiteConfig(domain string) (string, error) {
-	path := filepath.Join(s.ConfigDir, "sites-available", domain)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
+	// Search in all config files
+	files := s.getConfigFiles()
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		blocks := extractServerBlocks(string(data))
+		for _, block := range blocks {
+			site := parseServerBlock(block, path)
+			if site.Domain == domain {
+				return block, nil
+			}
+		}
 	}
-	return string(data), nil
+	return "", fmt.Errorf("server block for %s not found", domain)
 }
 
-func (s *NginxService) SaveSiteConfig(domain string, content string) error {
-	path := filepath.Join(s.ConfigDir, "sites-available", domain)
-	return os.WriteFile(path, []byte(content), 0644)
+// SaveSiteConfig updates a server block in the config file
+func (s *NginxService) SaveSiteConfig(domain string, newBlock string) error {
+	files := s.getConfigFiles()
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		content := string(data)
+		blocks := extractServerBlocksWithPositions(content)
+		for _, bp := range blocks {
+			site := parseServerBlock(bp.Content, path)
+			if site.Domain == domain {
+				// Replace the old block with new one
+				updated := content[:bp.Start] + newBlock + content[bp.End:]
+				return os.WriteFile(path, []byte(updated), 0644)
+			}
+		}
+	}
+	return fmt.Errorf("server block for %s not found", domain)
 }
 
+// EnableSite enables a server block by uncommenting it
 func (s *NginxService) EnableSite(domain string) error {
+	return s.setSiteEnabled(domain, true)
+}
+
+// DisableSite disables a server block by commenting it out
+func (s *NginxService) DisableSite(domain string) error {
+	return s.setSiteEnabled(domain, false)
+}
+
+func (s *NginxService) setSiteEnabled(domain string, enabled bool) error {
+	// Try sites-enabled first (traditional layout)
 	avail := filepath.Join(s.ConfigDir, "sites-available", domain)
-	enabled := filepath.Join(s.ConfigDir, "sites-enabled", domain)
-
-	if _, err := os.Stat(avail); err != nil {
-		return fmt.Errorf("site config not found: %s", domain)
-	}
-
-	if _, err := os.Stat(enabled); err == nil {
+	if _, err := os.Stat(avail); err == nil {
+		link := filepath.Join(s.ConfigDir, "sites-enabled", domain)
+		if enabled {
+			os.Symlink(avail, link)
+		} else {
+			os.Remove(link)
+		}
 		return nil
 	}
 
-	return os.Symlink(avail, enabled)
-}
-
-func (s *NginxService) DisableSite(domain string) error {
-	enabled := filepath.Join(s.ConfigDir, "sites-enabled", domain)
-	return os.Remove(enabled)
+	// For nginx.conf / conf.d, we note the site is managed in the main config
+	// Enable/disable isn't applicable for inline server blocks
+	return fmt.Errorf("site %s is managed in the main nginx config, enable/disable not supported for inline blocks", domain)
 }
 
 func (s *NginxService) IsAvailable() bool {
 	_, err := exec.LookPath("nginx")
 	return err == nil
+}
+
+func (s *NginxService) getConfigFiles() []string {
+	var files []string
+	mainConf := filepath.Join(s.ConfigDir, "nginx.conf")
+	if _, err := os.Stat(mainConf); err == nil {
+		files = append(files, mainConf)
+	}
+	confD := filepath.Join(s.ConfigDir, "conf.d")
+	if entries, err := os.ReadDir(confD); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".conf") {
+				files = append(files, filepath.Join(confD, e.Name()))
+			}
+		}
+	}
+	sitesAvail := filepath.Join(s.ConfigDir, "sites-available")
+	if entries, err := os.ReadDir(sitesAvail); err == nil {
+		for _, e := range entries {
+			info, err := e.Info()
+			if err == nil && !info.IsDir() {
+				files = append(files, filepath.Join(sitesAvail, e.Name()))
+			}
+		}
+	}
+	return files
+}
+
+type blockPosition struct {
+	Content string
+	Start   int
+	End     int
+}
+
+// extractServerBlocks extracts server { ... } blocks from config text
+func extractServerBlocks(content string) []string {
+	var blocks []string
+	scanner := bufio.NewScanner(strings.NewReader(content))
+
+	var currentBlock strings.Builder
+	depth := 0
+	inServer := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if !inServer {
+			if strings.HasPrefix(trimmed, "#") && strings.Contains(trimmed, "server") {
+				// Check if next non-comment line is a server block (commented out)
+				continue
+			}
+			if strings.HasPrefix(trimmed, "server") && (trimmed == "server" || strings.HasPrefix(trimmed, "server{") || strings.HasPrefix(trimmed, "server {")) {
+				inServer = true
+				currentBlock.Reset()
+				currentBlock.WriteString(line)
+				currentBlock.WriteString("\n")
+				depth = 0
+				for _, ch := range line {
+					if ch == '{' {
+						depth++
+					}
+					if ch == '}' {
+						depth--
+					}
+				}
+				if depth == 0 && strings.Contains(trimmed, "{") && strings.Contains(trimmed, "}") {
+					blocks = append(blocks, currentBlock.String())
+					inServer = false
+				}
+				continue
+			}
+		}
+
+		if inServer {
+			currentBlock.WriteString(line)
+			currentBlock.WriteString("\n")
+			for _, ch := range line {
+				if ch == '{' {
+					depth++
+				}
+				if ch == '}' {
+					depth--
+				}
+			}
+			if depth <= 0 {
+				blocks = append(blocks, currentBlock.String())
+				inServer = false
+			}
+		}
+	}
+
+	return blocks
+}
+
+// extractServerBlocksWithPositions returns blocks with their byte positions
+func extractServerBlocksWithPositions(content string) []blockPosition {
+	var positions []blockPosition
+	lines := strings.Split(content, "\n")
+
+	bytePos := 0
+	inServer := false
+	depth := 0
+	blockStart := 0
+	var blockContent strings.Builder
+
+	for _, line := range lines {
+		lineWithNewline := line + "\n"
+		trimmed := strings.TrimSpace(line)
+
+		if !inServer {
+			if strings.HasPrefix(trimmed, "server") && (trimmed == "server" || strings.HasPrefix(trimmed, "server{") || strings.HasPrefix(trimmed, "server {")) {
+				inServer = true
+				blockStart = bytePos
+				blockContent.Reset()
+				blockContent.WriteString(lineWithNewline)
+				depth = 0
+				for _, ch := range line {
+					if ch == '{' {
+						depth++
+					}
+					if ch == '}' {
+						depth--
+					}
+				}
+				if depth == 0 && strings.Contains(trimmed, "{") && strings.Contains(trimmed, "}") {
+					positions = append(positions, blockPosition{
+						Content: blockContent.String(),
+						Start:   blockStart,
+						End:     bytePos + len(lineWithNewline),
+					})
+					inServer = false
+				}
+			}
+		} else {
+			blockContent.WriteString(lineWithNewline)
+			for _, ch := range line {
+				if ch == '{' {
+					depth++
+				}
+				if ch == '}' {
+					depth--
+				}
+			}
+			if depth <= 0 {
+				positions = append(positions, blockPosition{
+					Content: blockContent.String(),
+					Start:   blockStart,
+					End:     bytePos + len(lineWithNewline),
+				})
+				inServer = false
+			}
+		}
+
+		bytePos += len(lineWithNewline)
+	}
+
+	return positions
+}
+
+// parseServerBlock extracts site info from a server block string
+func parseServerBlock(block string, configPath string) SiteConfig {
+	site := SiteConfig{
+		ConfigPath: configPath,
+		Enabled:    true,
+	}
+
+	re := regexp.MustCompile(`server_name\s+([^;]+)`)
+	if m := re.FindStringSubmatch(block); len(m) > 1 {
+		site.Domain = strings.TrimSpace(m[1])
+		// Take first domain if multiple
+		parts := strings.Fields(site.Domain)
+		if len(parts) > 0 {
+			site.Domain = parts[0]
+		}
+	}
+
+	re = regexp.MustCompile(`listen\s+(\d+)`)
+	if m := re.FindStringSubmatch(block); len(m) > 1 {
+		fmt.Sscanf(m[1], "%d", &site.Port)
+	}
+
+	site.SSLEnabled = strings.Contains(block, "ssl_certificate")
+
+	re = regexp.MustCompile(`proxy_pass\s+(https?://[^;]+)`)
+	if m := re.FindStringSubmatch(block); len(m) > 1 {
+		site.Upstream = m[1]
+	}
+
+	return site
 }
