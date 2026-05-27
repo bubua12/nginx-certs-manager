@@ -149,7 +149,11 @@ const loadSettings = async () => {
 const handleSaveSettings = async () => {
   saving.value = true
   try {
-    await updateSettings(settings as any)
+    const payload: Record<string, string> = {}
+    for (const [key, val] of Object.entries(settings)) {
+      payload[key] = String(val)
+    }
+    await updateSettings(payload)
     ElMessage.success('设置已保存')
   } catch {
     ElMessage.error('保存失败')
