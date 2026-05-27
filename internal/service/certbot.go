@@ -43,13 +43,14 @@ type CertInfo struct {
 }
 
 func (s *CertbotService) ListCertificates() ([]CertInfo, error) {
-	// Method 1: Try `certbot certificates` command
-	if certs, err := s.listViaCommand(); err == nil && len(certs) > 0 {
+	// Primary: read certificate files directly (most reliable)
+	certs, err := s.listViaFiles()
+	if err == nil && len(certs) > 0 {
 		return certs, nil
 	}
 
-	// Method 2: Fallback - read certificate files directly
-	return s.listViaFiles()
+	// Fallback: certbot certificates command
+	return s.listViaCommand()
 }
 
 func (s *CertbotService) listViaCommand() ([]CertInfo, error) {
