@@ -57,7 +57,6 @@ func main() {
 	public := e.Group("/api")
 	{
 		public.POST("/auth/login", authHandler.Login)
-		public.POST("/auth/register", authHandler.Register)
 	}
 
 	// Protected routes (JWT required)

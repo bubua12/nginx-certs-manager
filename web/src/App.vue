@@ -1,5 +1,6 @@
 <template>
-  <el-container class="app-container">
+  <router-view v-if="isLoginPage" />
+  <el-container v-else class="app-container">
     <el-aside :width="isCollapsed ? '64px' : '220px'" class="app-aside">
       <div class="logo" @click="router.push('/')">
         <el-icon :size="24"><Lock /></el-icon>
@@ -24,10 +25,7 @@
         </el-menu-item>
       </el-menu>
       <div class="collapse-btn" @click="isCollapsed = !isCollapsed">
-        <el-icon>
-          <Fold v-if="!isCollapsed" />
-          <Expand v-else />
-        </el-icon>
+        <el-icon><Fold v-if="!isCollapsed" /><Expand v-else /></el-icon>
       </div>
     </el-aside>
     <el-container>
@@ -37,7 +35,7 @@
           <el-dropdown @command="handleCommand">
             <span class="user-info">
               <el-icon><User /></el-icon>
-              {{ authStore.username || '用户' }}
+              {{ authStore.username || 'admin' }}
               <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
@@ -59,13 +57,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const isCollapsed = ref(false)
+
+const isLoginPage = computed(() => route.path === '/login')
 
 const menuItems = [
   { path: '/dashboard', title: '仪表盘', icon: 'DataBoard' },
@@ -113,11 +113,7 @@ html, body, #app { height: 100%; }
   flex-shrink: 0;
 }
 .logo-text { white-space: nowrap; }
-.app-menu {
-  flex: 1;
-  border-right: none !important;
-  overflow-y: auto;
-}
+.app-menu { flex: 1; border-right: none !important; overflow-y: auto; }
 .app-menu::-webkit-scrollbar { width: 0; }
 .collapse-btn {
   height: 48px;
@@ -150,8 +146,5 @@ html, body, #app { height: 100%; }
   font-size: 14px;
 }
 .user-info:hover { color: #409eff; }
-.app-main {
-  background: #f0f2f5;
-  overflow-y: auto;
-}
+.app-main { background: #f0f2f5; overflow-y: auto; }
 </style>

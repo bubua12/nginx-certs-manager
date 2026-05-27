@@ -2,10 +2,12 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/glebarez/sqlite"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -38,5 +40,28 @@ func Init(dbPath string) error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
+	seedAdmin()
 	return nil
+}
+
+func seedAdmin() {
+	var count int64
+	DB.Model(&model.User{}).Where("username = ?", "admin").Count(&count)
+	if count > 0 {
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("Ncm@2026!Secure"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("failed to hash admin password: %v", err)
+		return
+	}
+
+	admin := model.User{
+		Username: "admin",
+		Password: string(hash),
+		Role:     "admin",
+	}
+	DB.Create(&admin)
+	log.Println("Default admin created: admin / Ncm@2026!Secure")
 }
