@@ -53,7 +53,7 @@ func seedAdmin() {
 
 	password := os.Getenv("ADMIN_PASSWORD")
 	if password == "" {
-		password = "Ncm@2026!Secure"
+		password = "admin"
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -68,5 +68,5 @@ func seedAdmin() {
 		Role:     "admin",
 	}
 	DB.Create(&admin)
-	log.Printf("Default admin created: admin / %s", password)
+	log.Printf("Default admin created (username: admin). Change password after first login!")
 }

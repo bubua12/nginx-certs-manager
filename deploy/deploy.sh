@@ -6,9 +6,8 @@ set -e
 
 APP_NAME="nginx-certs-manager"
 APP_DIR="/opt/$APP_NAME"
-WEB_DIR="/var/www/certs-bubua12-com"
+WEB_DIR="/var/www/certs-your-domain-com"
 SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
-NGINX_CONF="/etc/nginx/sites-available/certs.bubua12.com"
 
 echo "=== Nginx Certs Manager 部署 ==="
 
@@ -57,36 +56,18 @@ Restart=on-failure
 RestartSec=5
 Environment=PORT=8080
 Environment=DB_PATH=/opt/nginx-certs-manager/data/certs.db
-Environment=WEB_DIR=/var/www/certs-bubua12-com
+Environment=WEB_DIR=$WEB_DIR
 Environment=NGINX_DIR=/etc/nginx
 Environment=CERTBOT_DIR=/etc/letsencrypt
+Environment=JWT_SECRET=$(openssl rand -hex 32)
+Environment=ADMIN_PASSWORD=$(openssl rand -base64 16)
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# 配置 Nginx
-echo "5. 配置 Nginx..."
-if [ -f "./certs.bubua12.com.conf" ]; then
-    cp ./certs.bubua12.com.conf $NGINX_CONF
-    ln -sf $NGINX_CONF /etc/nginx/sites-enabled/certs.bubua12.com
-    nginx -t && nginx -s reload
-    echo "   Nginx 配置完成"
-else
-    echo "   警告: 找不到 certs.bubua12.com.conf，请手动配置 Nginx"
-fi
-
-# 申请 SSL 证书（如果没有的话）
-echo "6. 检查 SSL 证书..."
-if [ ! -d "/etc/letsencrypt/live/certs.bubua12.com" ]; then
-    echo "   正在申请证书..."
-    certbot --nginx -d certs.bubua12.com --non-interactive --agree-tos --register-unsafely-without-email || true
-else
-    echo "   证书已存在，跳过"
-fi
-
 # 启动服务
-echo "7. 启动服务..."
+echo "5. 启动服务..."
 systemctl daemon-reload
 systemctl enable $APP_NAME
 systemctl restart $APP_NAME
@@ -94,5 +75,6 @@ systemctl restart $APP_NAME
 echo ""
 echo "=== 部署完成 ==="
 echo "服务状态: systemctl status $APP_NAME"
-echo "访问地址: https://certs.bubua12.com"
 echo "查看日志: journalctl -u $APP_NAME -f"
+echo ""
+echo "请自行配置 Nginx 反向代理 + SSL 证书，然后访问你的域名"

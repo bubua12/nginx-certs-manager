@@ -86,16 +86,16 @@ bash deploy.sh
 | `NGINX_DIR` | `/etc/nginx` | Nginx 配置目录 |
 | `CERTBOT_DIR` | `/etc/letsencrypt` | Certbot 证书目录 |
 | `JWT_SECRET` | `nginx-certs-manager-default-secret` | JWT 签名密钥（生产环境务必修改） |
-| `ADMIN_PASSWORD` | `Ncm@2026!Secure` | 默认管理员密码（仅首次启动生效） |
+| `ADMIN_PASSWORD` | `admin` | 默认管理员密码（仅首次启动生效，登录后请立即修改） |
 
 ## 🔑 默认账号
 
 | 项目 | 值 |
 |------|-----|
 | 用户名 | `admin` |
-| 密码 | `Ncm@2026!Secure` |
+| 密码 | `admin` |
 
-> 首次登录后请立即修改密码。密码可通过环境变量 `ADMIN_PASSWORD` 自定义（需在首次启动前设置）。
+> ⚠️ 首次登录后请立即修改密码！密码可通过环境变量 `ADMIN_PASSWORD` 自定义（需在首次启动前设置）。
 
 ## 🌐 Nginx 配置示例
 
