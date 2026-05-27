@@ -216,7 +216,10 @@ const reloadNginxHandler = async () => {
 }
 
 const loadLogs = async () => {
-  try { logs.value = (await getLogs()).data || [] } catch {}
+  try {
+    const res = await getLogs(1, 10)
+    logs.value = res.data.items || []
+  } catch {}
 }
 
 onMounted(() => {

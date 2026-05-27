@@ -36,7 +36,18 @@ func UpdateSettings(c echo.Context) error {
 }
 
 func GetLogs(c echo.Context) error {
+	page, pageSize := parsePagination(c)
+
+	var total int64
+	database.DB.Model(&model.OperationLog{}).Count(&total)
+
 	var logs []model.OperationLog
-	database.DB.Order("created_at DESC").Limit(100).Find(&logs)
-	return c.JSON(http.StatusOK, logs)
+	database.DB.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&logs)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"items":     logs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }

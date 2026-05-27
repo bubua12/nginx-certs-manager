@@ -76,6 +76,18 @@
         </el-table-column>
         <el-table-column prop="message" label="详情" show-overflow-tooltip />
       </el-table>
+
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="logPage"
+          v-model:page-size="logPageSize"
+          :page-sizes="[5, 10, 20, 50]"
+          :total="logTotal"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="loadLogs"
+          @current-change="loadLogs"
+        />
+      </div>
     </el-card>
   </div>
 </template>
@@ -91,6 +103,9 @@ const reloading = ref(false)
 const validating = ref(false)
 const saving = ref(false)
 const logs = ref<any[]>([])
+const logTotal = ref(0)
+const logPage = ref(1)
+const logPageSize = ref(10)
 
 const settings = reactive({
   scan_interval: '30m',
@@ -163,7 +178,11 @@ const handleSaveSettings = async () => {
 }
 
 const loadLogs = async () => {
-  try { logs.value = (await getLogs()).data || [] } catch {}
+  try {
+    const res = await getLogs(logPage.value, logPageSize.value)
+    logs.value = res.data.items || []
+    logTotal.value = res.data.total || 0
+  } catch {}
 }
 
 onMounted(() => {
@@ -172,3 +191,7 @@ onMounted(() => {
   loadLogs()
 })
 </script>
+
+<style scoped>
+.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
+</style>

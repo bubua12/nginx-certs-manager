@@ -20,8 +20,13 @@ func NewCertHandler(certbot *service.CertbotService) *CertHandler {
 }
 
 func (h *CertHandler) List(c echo.Context) error {
+	page, pageSize := parsePagination(c)
+
+	var total int64
+	database.DB.Model(&model.Certificate{}).Count(&total)
+
 	var certs []model.Certificate
-	database.DB.Order("not_after ASC").Find(&certs)
+	database.DB.Order("not_after ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&certs)
 
 	type CertView struct {
 		model.Certificate
@@ -36,7 +41,12 @@ func (h *CertHandler) List(c echo.Context) error {
 		})
 	}
 
-	return c.JSON(http.StatusOK, result)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"items":     result,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 func (h *CertHandler) Get(c echo.Context) error {

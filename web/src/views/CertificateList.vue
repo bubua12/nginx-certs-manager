@@ -23,9 +23,7 @@
         </el-table-column>
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="default">
-              {{ statusLabel(row.status) }}
-            </el-tag>
+            <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="剩余天数" width="120" sortable :sort-method="(a: any, b: any) => a.days_left - b.days_left">
@@ -41,22 +39,28 @@
         <el-table-column prop="issuer" label="签发机构" width="180" show-overflow-tooltip />
         <el-table-column label="自动续期" width="100" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.auto_renew ? 'success' : 'info'" size="small">
-              {{ row.auto_renew ? '是' : '否' }}
-            </el-tag>
+            <el-tag :type="row.auto_renew ? 'success' : 'info'" size="small">{{ row.auto_renew ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleRenew(row)" :loading="row._renewing">
-              续期
-            </el-button>
-            <el-button type="danger" size="small" @click="handleRevoke(row)">
-              撤销
-            </el-button>
+            <el-button type="primary" size="small" @click="handleRenew(row)" :loading="row._renewing">续期</el-button>
+            <el-button type="danger" size="small" @click="handleRevoke(row)">撤销</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-wrap">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :page-sizes="[5, 10, 20, 50]"
+          :total="total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="loadCerts"
+          @current-change="loadCerts"
+        />
+      </div>
     </el-card>
 
     <el-dialog v-model="showRequestDialog" title="申请新证书" width="500">
@@ -84,19 +88,23 @@ import dayjs from 'dayjs'
 
 const certs = ref<any[]>([])
 const loading = ref(false)
+const total = ref(0)
+const page = ref(1)
+const pageSize = ref(10)
 const showRequestDialog = ref(false)
 const requesting = ref(false)
 const requestForm = ref({ domain: '', webroot: '' })
 
 const formatDate = (d: string) => dayjs(d).format('YYYY-MM-DD')
-
 const statusType = (s: string) => ({ active: 'success', expiring: 'warning', expired: 'danger' }[s] || 'info') as any
 const statusLabel = (s: string) => ({ active: '正常', expiring: '即将过期', expired: '已过期' }[s] || s)
 
 const loadCerts = async () => {
   loading.value = true
   try {
-    certs.value = (await getCertificates()).data || []
+    const res = await getCertificates(page.value, pageSize.value)
+    certs.value = res.data.items || []
+    total.value = res.data.total || 0
   } catch {
     ElMessage.error('加载证书列表失败')
   } finally {
@@ -108,7 +116,7 @@ const handleRenew = async (cert: any) => {
   try {
     await ElMessageBox.confirm(`确定要续期证书 ${cert.domain} 吗？`, '确认续期', { type: 'warning' })
     cert._renewing = true
-    const res = await renewCertificate(cert.id)
+    await renewCertificate(cert.id)
     ElMessage.success('续期成功')
     loadCerts()
   } catch (e: any) {
@@ -120,7 +128,7 @@ const handleRenew = async (cert: any) => {
 
 const handleRevoke = async (cert: any) => {
   try {
-    await ElMessageBox.confirm(`确定要撤销证书 ${cert.domain} 吗？此操作不可恢复！`, '确认撤销', { type: 'error', confirmButtonText: '确认撤销', cancelButtonText: '取消' })
+    await ElMessageBox.confirm(`确定要撤销证书 ${cert.domain} 吗？此操作不可恢复！`, '确认撤销', { type: 'error', confirmButtonText: '确认撤销' })
     await revokeCertificate(cert.id)
     ElMessage.success('证书已撤销')
     loadCerts()
@@ -154,4 +162,5 @@ onMounted(loadCerts)
 <style scoped>
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .actions { display: flex; gap: 8px; }
+.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
 </style>

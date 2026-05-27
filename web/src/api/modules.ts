@@ -5,7 +5,8 @@ export const getDashboardStats = () => api.get('/dashboard/stats')
 export const getDashboardTimeline = () => api.get('/dashboard/timeline')
 
 // Certificates
-export const getCertificates = () => api.get('/certificates')
+export const getCertificates = (page = 1, pageSize = 10) =>
+  api.get('/certificates', { params: { page, page_size: pageSize } })
 export const getCertificate = (id: number) => api.get(`/certificates/${id}`)
 export const renewCertificate = (id: number) => api.post(`/certificates/renew/${id}`)
 export const requestCertificate = (domain: string, webroot?: string) =>
@@ -13,7 +14,8 @@ export const requestCertificate = (domain: string, webroot?: string) =>
 export const revokeCertificate = (id: number) => api.delete(`/certificates/${id}`)
 
 // Sites
-export const getSites = () => api.get('/sites')
+export const getSites = (page = 1, pageSize = 10) =>
+  api.get('/sites', { params: { page, page_size: pageSize } })
 export const getSite = (id: number) => api.get(`/sites/${id}`)
 export const getSiteConfig = (id: number) => api.get(`/sites/${id}/config`)
 export const updateSiteConfig = (id: number, content: string) =>
@@ -30,4 +32,5 @@ export const validateNginx = () => api.post('/nginx/validate')
 export const getSettings = () => api.get('/settings')
 export const updateSettings = (settings: Record<string, string>) =>
   api.put('/settings', settings)
-export const getLogs = () => api.get('/logs')
+export const getLogs = (page = 1, pageSize = 10) =>
+  api.get('/logs', { params: { page, page_size: pageSize } })

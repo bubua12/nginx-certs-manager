@@ -20,9 +20,20 @@ func NewSiteHandler(nginx *service.NginxService) *SiteHandler {
 }
 
 func (h *SiteHandler) List(c echo.Context) error {
+	page, pageSize := parsePagination(c)
+
+	var total int64
+	database.DB.Model(&model.Site{}).Count(&total)
+
 	var sites []model.Site
-	database.DB.Preload("Certificate").Find(&sites)
-	return c.JSON(http.StatusOK, sites)
+	database.DB.Preload("Certificate").Offset((page - 1) * pageSize).Limit(pageSize).Find(&sites)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"items":     sites,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
 func (h *SiteHandler) Get(c echo.Context) error {
