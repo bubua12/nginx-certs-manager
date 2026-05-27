@@ -82,26 +82,31 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="12">
+      <el-col :span="6">
         <el-card shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>Nginx 状态</span>
-              <el-button type="primary" size="small" @click="reloadNginxHandler" :loading="nginxReloading">
-                重新加载
-              </el-button>
+          <div class="stat-card">
+            <div class="stat-icon" :style="{ background: nginxStatus?.running ? '#67c23a22' : '#f5623c22', color: nginxStatus?.running ? '#67c23a' : '#f56c6c' }">
+              <el-icon :size="28"><Monitor /></el-icon>
             </div>
-          </template>
-          <div v-if="nginxStatus" class="nginx-status">
-            <el-tag :type="nginxStatus.running ? 'success' : 'danger'" size="large">
-              {{ nginxStatus.running ? '运行中' : '已停止' }}
-            </el-tag>
-            <span v-if="nginxStatus.version" style="margin-left: 16px; color: #666">
-              v{{ nginxStatus.version }}
-            </span>
-            <span v-if="nginxStatus.pid" style="margin-left: 16px; color: #999">
-              PID: {{ nginxStatus.pid }}
-            </span>
+            <div class="stat-info">
+              <div class="stat-value" :style="{ color: nginxStatus?.running ? '#67c23a' : '#f56c6c' }">
+                {{ nginxStatus?.running ? '运行中' : '已停止' }}
+              </div>
+              <div class="stat-label">Nginx 状态</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <div class="stat-card">
+            <div class="stat-icon" style="background: #409eff22; color: #409eff">
+              <el-icon :size="28"><Lock /></el-icon>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ stats.ssl_sites || 0 }}</div>
+              <div class="stat-label">SSL 站点</div>
+            </div>
           </div>
         </el-card>
       </el-col>
@@ -144,15 +149,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
-import { getDashboardStats, getDashboardTimeline, getNginxStatus, reloadNginx, getLogs } from '@/api/modules'
+import { getDashboardStats, getDashboardTimeline, getNginxStatus, getLogs } from '@/api/modules'
 import dayjs from 'dayjs'
 
-const stats = ref({ total_certs: 0, active_certs: 0, expiring_soon: 0, expired_certs: 0, total_sites: 0, active_sites: 0 })
+const stats = ref({ total_certs: 0, active_certs: 0, expiring_soon: 0, expired_certs: 0, total_sites: 0, active_sites: 0, ssl_sites: 0 })
 const timeline = ref<any[]>([])
 const nginxStatus = ref<any>(null)
-const nginxReloading = ref(false)
 const logs = ref<any[]>([])
 const chartRef = ref<HTMLElement>()
 
@@ -202,19 +205,6 @@ const loadNginxStatus = async () => {
   try { nginxStatus.value = (await getNginxStatus()).data } catch {}
 }
 
-const reloadNginxHandler = async () => {
-  nginxReloading.value = true
-  try {
-    await reloadNginx()
-    ElMessage.success('Nginx 已重新加载')
-    await loadNginxStatus()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.error || '加载失败')
-  } finally {
-    nginxReloading.value = false
-  }
-}
-
 const loadLogs = async () => {
   try {
     const res = await getLogs(1, 10)
@@ -244,10 +234,4 @@ onMounted(() => {
 }
 .stat-value { font-size: 28px; font-weight: 600; color: #303133; }
 .stat-label { font-size: 14px; color: #909399; margin-top: 4px; }
-.card-header {
-  display: flex; justify-content: space-between; align-items: center;
-}
-.nginx-status {
-  display: flex; align-items: center;
-}
 </style>

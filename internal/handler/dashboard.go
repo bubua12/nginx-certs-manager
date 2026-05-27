@@ -16,6 +16,7 @@ type DashboardStats struct {
 	ExpiredCerts int64 `json:"expired_certs"`
 	TotalSites   int64 `json:"total_sites"`
 	ActiveSites  int64 `json:"active_sites"`
+	SSLSites     int64 `json:"ssl_sites"`
 }
 
 type TimelineItem struct {
@@ -34,6 +35,7 @@ func GetDashboardStats(c echo.Context) error {
 	database.DB.Model(&model.Certificate{}).Where("status = ?", "expired").Count(&stats.ExpiredCerts)
 	database.DB.Model(&model.Site{}).Count(&stats.TotalSites)
 	database.DB.Model(&model.Site{}).Where("enabled = ?", true).Count(&stats.ActiveSites)
+	database.DB.Model(&model.Site{}).Where("ssl_enabled = ?", true).Count(&stats.SSLSites)
 
 	return c.JSON(http.StatusOK, stats)
 }
