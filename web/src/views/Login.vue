@@ -1,40 +1,47 @@
 <!-- 登录页面模板 -->
 <template>
-  <!-- 登录页最外层容器，应用渐变背景 -->
+  <!-- 登录页最外层容器 -->
   <div class="login-container">
-    <!-- 登录卡片，包含标题和表单 -->
+    <!-- 背景装饰：动态渐变圆形 -->
+    <div class="bg-decoration">
+      <div class="circle circle-1"></div>
+      <div class="circle circle-2"></div>
+      <div class="circle circle-3"></div>
+    </div>
+
+    <!-- 登录卡片：毛玻璃效果 -->
     <div class="login-card">
-      <!-- 登录页头部：显示锁图标、应用名称和提示文字 -->
+      <!-- 登录页头部：锁图标 + 应用名称 + 副标题 -->
       <div class="login-header">
-        <el-icon :size="40" color="#409eff"><Lock /></el-icon>
+        <div class="logo-icon">
+          <el-icon :size="36" color="#fff"><Lock /></el-icon>
+        </div>
         <h1>Nginx Certs Manager</h1>
-        <p>请登录以继续</p>
+        <p>SSL 证书 & Nginx 站点管理平台</p>
       </div>
 
       <!-- 登录表单 -->
-      <!-- ref: 获取表单组件引用，用于手动触发表单验证 -->
-      <!-- model: 绑定表单数据对象 -->
-      <!-- rules: 绑定验证规则 -->
-      <!-- @submit.prevent: 阻止表单默认提交行为，改为调用 handleLogin -->
       <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleLogin" label-position="top">
         <!-- 用户名输入框 -->
         <el-form-item label="用户名" prop="username">
-          <!-- prefix-icon: 输入框左侧图标；@keyup.enter: 按回车键触发登录 -->
           <el-input v-model="form.username" placeholder="请输入用户名" size="large" prefix-icon="User" @keyup.enter="handleLogin" />
         </el-form-item>
         <!-- 密码输入框 -->
         <el-form-item label="密码" prop="password">
-          <!-- show-password: 显示密码可见性切换按钮 -->
           <el-input v-model="form.password" type="password" placeholder="请输入密码" size="large" prefix-icon="Lock" show-password @keyup.enter="handleLogin" />
         </el-form-item>
         <!-- 登录按钮 -->
         <el-form-item>
-          <!-- :loading: 登录请求中时显示加载动画，防止重复提交 -->
-          <el-button type="primary" size="large" style="width: 100%" :loading="loading" @click="handleLogin">
+          <el-button type="primary" size="large" style="width: 100%" :loading="loading" @click="handleLogin" class="login-btn">
             登 录
           </el-button>
         </el-form-item>
       </el-form>
+
+      <!-- 底部信息 -->
+      <div class="login-footer">
+        <span>Let's Encrypt + Certbot + Nginx</span>
+      </div>
     </div>
   </div>
 </template>
@@ -82,31 +89,21 @@ const rules = {
  * 4. 失败时显示错误信息，包含后端返回的剩余尝试次数
  */
 const handleLogin = async () => {
-  // 触发表单验证，如果验证不通过会抛出异常
   await formRef.value?.validate()
-  // 设置按钮为加载状态
   loading.value = true
   try {
-    // 调用认证 Store 的登录方法
     await authStore.login(form.username, form.password)
-    // 登录成功提示
     ElMessage.success('登录成功')
-    // 跳转到仪表盘页面
     router.push('/dashboard')
   } catch (e: any) {
-    // 登录失败：获取后端返回的错误信息
     const msg = e.response?.data?.error || '登录失败'
-    // 获取剩余登录尝试次数（后端有登录失败次数限制）
     const remaining = e.response?.data?.remaining
     if (remaining !== undefined && remaining > 0) {
-      // 如果还有剩余次数，显示剩余次数提示
       ElMessage.error(`${msg}，剩余 ${remaining} 次机会`)
     } else {
-      // 否则直接显示错误信息
       ElMessage.error(msg)
     }
   } finally {
-    // 无论成功失败，都取消加载状态
     loading.value = false
   }
 }
@@ -114,29 +111,179 @@ const handleLogin = async () => {
 
 <!-- 登录页面样式 -->
 <style scoped>
-/* 登录页最外层容器：全屏居中，渐变紫色背景 */
+/* 登录页最外层容器：全屏，深色渐变背景 */
 .login-container {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0c1426 0%, #1a1a3e 40%, #16213e 100%);
+  position: relative;
+  overflow: hidden;
 }
-/* 登录卡片：白色圆角卡片，带阴影效果 */
-.login-card {
+
+/* ===== 背景装饰：浮动渐变圆形 ===== */
+.bg-decoration {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.circle {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+}
+/* 右上角蓝紫色圆形 */
+.circle-1 {
+  width: 500px;
+  height: 500px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  top: -150px;
+  right: -100px;
+  animation: float1 15s ease-in-out infinite;
+}
+/* 左下角蓝绿色圆形 */
+.circle-2 {
   width: 400px;
-  padding: 40px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  height: 400px;
+  background: linear-gradient(135deg, #43e97b, #38f9d7);
+  bottom: -100px;
+  left: -80px;
+  animation: float2 18s ease-in-out infinite;
 }
-/* 登录头部区域：居中显示图标和文字 */
+/* 中间偏右橙粉色圆形 */
+.circle-3 {
+  width: 300px;
+  height: 300px;
+  background: linear-gradient(135deg, #fa709a, #fee140);
+  top: 40%;
+  right: 20%;
+  animation: float3 20s ease-in-out infinite;
+}
+
+/* 圆形浮动动画 */
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-40px, 40px) scale(1.1); }
+}
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -30px) scale(1.15); }
+}
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20px, -40px) scale(0.9); }
+}
+
+/* ===== 登录卡片：毛玻璃效果 ===== */
+.login-card {
+  width: 420px;
+  padding: 48px 40px 32px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+}
+
+/* 登录头部区域 */
 .login-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 36px;
 }
-/* 应用标题样式 */
-.login-header h1 { font-size: 22px; margin: 12px 0 4px; color: #303133; }
-/* 提示文字样式 */
-.login-header p { color: #909399; font-size: 14px; }
+/* Logo 图标容器：蓝紫渐变圆形背景 */
+.logo-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+/* 应用标题 */
+.login-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+/* 副标题 */
+.login-header p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ===== 表单样式覆盖：适配深色背景 ===== */
+/* 表单标签颜色 */
+.login-card :deep(.el-form-item__label) {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+/* 输入框容器 */
+.login-card :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  border-radius: 10px;
+  height: 44px;
+  transition: all 0.3s;
+}
+/* 输入框聚焦状态 */
+.login-card :deep(.el-input__wrapper:hover),
+.login-card :deep(.el-input__wrapper.is-focus) {
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+/* 输入框文字颜色 */
+.login-card :deep(.el-input__inner) {
+  color: #fff;
+}
+/* 输入框占位符颜色 */
+.login-card :deep(.el-input__inner::placeholder) {
+  color: rgba(255, 255, 255, 0.3);
+}
+/* 输入框图标颜色 */
+.login-card :deep(.el-input__prefix .el-icon) {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 登录按钮 */
+.login-btn {
+  height: 46px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  border: none !important;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
+  transition: all 0.3s;
+}
+.login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5);
+}
+
+/* 底部信息 */
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.login-footer span {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
 </style>
