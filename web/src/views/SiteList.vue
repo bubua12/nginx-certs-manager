@@ -21,26 +21,26 @@
       <!-- stripe: 斑马纹样式 -->
       <el-table :data="sites" v-loading="loading" stripe>
         <!-- 域名列：可点击跳转到站点详情页 -->
-        <el-table-column prop="domain" label="域名" min-width="200">
+        <el-table-column prop="domain" label="域名" min-width="180">
           <template #default="{ row }">
             <el-link type="primary" @click="$router.push(`/sites/${row.id}`)">{{ row.domain }}</el-link>
           </template>
         </el-table-column>
         <!-- 端口号列 -->
-        <el-table-column prop="port" label="端口" width="80" />
+        <el-table-column prop="port" label="端口" width="70" />
         <!-- SSL 状态列：使用锁图标表示，绿色为已启用，灰色为未启用 -->
-        <el-table-column label="SSL" width="80" align="center">
+        <el-table-column label="SSL" width="60" align="center">
           <template #default="{ row }">
             <el-icon v-if="row.ssl_enabled" color="#67c23a"><Lock /></el-icon>
             <el-icon v-else color="#c0c4cc"><Unlock /></el-icon>
           </template>
         </el-table-column>
         <!-- 反向代理地址列：显示 upstream 配置 -->
-        <el-table-column prop="upstream" label="反向代理" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="upstream" label="反向代理" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ row.upstream || '-' }}</template>
         </el-table-column>
         <!-- 启用状态列：绿色标签为启用，红色为禁用 -->
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.enabled ? 'success' : 'danger'" size="small">
               {{ row.enabled ? '启用' : '禁用' }}
@@ -48,7 +48,7 @@
           </template>
         </el-table-column>
         <!-- 关联证书列：显示关联的 SSL 证书域名 -->
-        <el-table-column label="证书" width="120">
+        <el-table-column label="证书" width="200">
           <template #default="{ row }">
             <!-- 已关联证书：显示证书域名 -->
             <el-tag v-if="row.certificate" type="success" size="small">{{ row.certificate.domain }}</el-tag>
