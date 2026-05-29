@@ -148,7 +148,10 @@
     <!-- ==================== 最近操作日志表格 ==================== -->
     <el-card shadow="hover" style="margin-top: 20px">
       <template #header>
-        <span>最近操作日志</span>
+        <div class="card-header">
+          <span>最近操作日志</span>
+          <el-button type="primary" link @click="$router.push('/settings')">查看更多 →</el-button>
+        </div>
       </template>
       <!-- 操作日志表格：stripe 带斑马纹，size="small" 紧凑模式 -->
       <el-table :data="logs" stripe size="small" max-height="300">
@@ -298,7 +301,7 @@ const loadNginxStatus = async () => {
 // 加载最近操作日志（取前 10 条）
 const loadLogs = async () => {
   try {
-    const res = await getLogs(1, 10)
+    const res = await getLogs(1, 5)
     logs.value = res.data.items || []
   } catch {}
 }
