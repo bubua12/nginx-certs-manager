@@ -335,4 +335,6 @@ onMounted(() => {
 .stat-value { font-size: 28px; font-weight: 600; color: #303133; }
 /* 统计标签样式：小号灰色描述文字 */
 .stat-label { font-size: 14px; color: #909399; margin-top: 4px; }
+/* 卡片头部：标题和按钮分列两端 */
+.card-header { display: flex; justify-content: space-between; align-items: center; }
 </style>
