@@ -5,6 +5,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -120,6 +121,12 @@ func main() {
 		api.GET("/settings", handler.GetSettings)   // 获取系统设置
 		api.PUT("/settings", handler.UpdateSettings) // 更新系统设置
 		api.GET("/logs", handler.GetLogs)            // 获取操作日志（分页）
+
+		// 手动触发扫描接口（立即扫描证书和站点）
+		api.POST("/scan", func(c echo.Context) error {
+			scanner.ScanAll()
+			return c.JSON(http.StatusOK, map[string]string{"message": "扫描完成"})
+		})
 	}
 
 	// 配置静态文件服务（前端 SPA 应用）

@@ -23,6 +23,9 @@
           <div style="margin-top: 16px; display: flex; gap: 8px">
             <el-button type="primary" @click="handleReload" :loading="reloading">重载 Nginx</el-button>
             <el-button @click="handleValidate" :loading="validating">校验配置</el-button>
+            <el-button type="success" @click="handleScan" :loading="scanning">
+              <el-icon><Refresh /></el-icon>扫描证书和站点
+            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -118,13 +121,14 @@
 
 import { ref, reactive, onMounted } from 'vue' // 导入 Vue 3 组合式 API
 import { ElMessage } from 'element-plus' // 导入 Element Plus 消息提示组件
-import { getNginxStatus, reloadNginx, validateNginx, getSettings, updateSettings, getLogs } from '@/api/modules' // 导入 API 接口
+import { getNginxStatus, reloadNginx, validateNginx, getSettings, updateSettings, getLogs, triggerScan } from '@/api/modules' // 导入 API 接口
 import dayjs from 'dayjs' // 导入日期格式化库
 
 // === 响应式状态 ===
 const nginxStatus = ref<any>(null)   // Nginx 运行状态信息（运行中/版本/PID）
 const reloading = ref(false)          // 重载 Nginx 操作加载状态
 const validating = ref(false)         // 校验配置操作加载状态
+const scanning = ref(false)            // 手动扫描操作加载状态
 const saving = ref(false)             // 保存设置操作加载状态
 const logs = ref<any[]>([])           // 操作日志列表数据
 const logTotal = ref(0)               // 日志总条数（用于分页）
@@ -199,6 +203,22 @@ const handleValidate = async () => {
     ElMessage.error('校验失败')
   } finally {
     validating.value = false
+  }
+}
+
+/**
+ * 处理手动扫描操作
+ * 立即触发后端扫描证书和站点，无需重启服务
+ */
+const handleScan = async () => {
+  scanning.value = true
+  try {
+    await triggerScan()
+    ElMessage.success('扫描完成，证书和站点已更新')
+  } catch {
+    ElMessage.error('扫描失败')
+  } finally {
+    scanning.value = false
   }
 }
 

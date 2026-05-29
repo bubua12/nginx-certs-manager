@@ -123,3 +123,9 @@ export const updateSettings = (settings: Record<string, string>) =>
  */
 export const getLogs = (page = 1, pageSize = 10) =>
   api.get('/logs', { params: { page, page_size: pageSize } })
+
+/**
+ * 手动触发扫描（立即扫描证书和站点）
+ * 不需要重启后端即可发现新证书和站点
+ */
+export const triggerScan = () => api.post('/scan')
