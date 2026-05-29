@@ -156,14 +156,20 @@ func (s *NginxService) ListSites() ([]SiteConfig, error) {
 		}
 	}
 
-	// Deduplicate by domain
-	seen := make(map[string]bool)
+	// Deduplicate by domain: prefer SSL-enabled block over non-SSL (HTTP redirect)
+	seen := make(map[string]int) // domain -> index in result
 	var result []SiteConfig
 	for _, site := range sites {
-		if !seen[site.Domain] {
-			seen[site.Domain] = true
+		idx, exists := seen[site.Domain]
+		if !exists {
+			// First occurrence of this domain
+			seen[site.Domain] = len(result)
 			result = append(result, site)
+		} else if site.SSLEnabled && !result[idx].SSLEnabled {
+			// Replace non-SSL with SSL version (prefer the actual HTTPS server block)
+			result[idx] = site
 		}
+		// If existing is already SSL, skip the new one (HTTP redirect block)
 	}
 
 	return result, nil

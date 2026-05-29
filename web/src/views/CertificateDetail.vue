@@ -176,7 +176,7 @@ const countdownColor = computed(() => {
  */
 const progressPercent = computed(() => {
   const d = cert.value?.days_left ?? 0
-  return Math.max(0, Math.min(100, (d / 90) * 100))
+  return Math.round(Math.max(0, Math.min(100, (d / 90) * 100)))
 })
 
 /**
